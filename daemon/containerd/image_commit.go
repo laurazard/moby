@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/diff"
 	cerrdefs "github.com/containerd/containerd/errdefs"
@@ -64,7 +63,7 @@ func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig)
 
 	var (
 		differ = i.client.DiffService()
-		sn     = i.client.SnapshotService(containerd.DefaultSnapshotter)
+		sn     = i.client.SnapshotService(i.snapshotter)
 	)
 
 	// Don't gc me and clean the dirty data after 1 hour!
@@ -90,7 +89,7 @@ func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig)
 	}
 
 	layers := append(ocimanifest.Layers, diffLayerDesc)
-	commitManifestDesc, configDigest, err := writeContentsForImage(ctx, containerd.DefaultSnapshotter, cs, imageConfig, layers)
+	commitManifestDesc, configDigest, err := writeContentsForImage(ctx, i.snapshotter, cs, imageConfig, layers)
 	if err != nil {
 		return "", err
 	}
