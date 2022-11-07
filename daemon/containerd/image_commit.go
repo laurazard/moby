@@ -48,25 +48,17 @@ func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig)
 
 	cs := i.client.ContentStore()
 
-	conf, err := images.Config(ctx, cs, desc, platforms.DefaultStrict())
+	ocimanifest, err := images.Manifest(ctx, cs, desc, platforms.DefaultStrict())
 	if err != nil {
 		return "", err
 	}
-	imageConfigBytes, err := content.ReadBlob(ctx, cs, conf)
+
+	imageConfigBytes, err := content.ReadBlob(ctx, cs, ocimanifest.Config)
 	if err != nil {
 		return "", err
 	}
 	var ociimage ocispec.Image
 	if err := json.Unmarshal(imageConfigBytes, &ociimage); err != nil {
-		return "", err
-	}
-
-	b, err := content.ReadBlob(ctx, cs, desc)
-	if err != nil {
-		return "", err
-	}
-	var ocimanifest ocispec.Manifest
-	if err := json.Unmarshal(b, &ocimanifest); err != nil {
 		return "", err
 	}
 
