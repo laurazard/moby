@@ -165,7 +165,7 @@ func writeContentsForImage(ctx context.Context, snName string, cs content.Store,
 	}
 
 	configDesc := ocispec.Descriptor{
-		MediaType: images.MediaTypeDockerSchema2Config,
+		MediaType: ocispec.MediaTypeImageConfig,
 		Digest:    digest.FromBytes(newConfigJSON),
 		Size:      int64(len(newConfigJSON)),
 	}
@@ -174,7 +174,7 @@ func writeContentsForImage(ctx context.Context, snName string, cs content.Store,
 		MediaType string `json:"mediaType,omitempty"`
 		ocispec.Manifest
 	}{
-		MediaType: images.MediaTypeDockerSchema2Manifest,
+		MediaType: ocispec.MediaTypeImageManifest,
 		Manifest: ocispec.Manifest{
 			Versioned: specs.Versioned{
 				SchemaVersion: 2,
@@ -190,7 +190,7 @@ func writeContentsForImage(ctx context.Context, snName string, cs content.Store,
 	}
 
 	newMfstDesc := ocispec.Descriptor{
-		MediaType: images.MediaTypeDockerSchema2Manifest,
+		MediaType: ocispec.MediaTypeImageManifest,
 		Digest:    digest.FromBytes(newMfstJSON),
 		Size:      int64(len(newMfstJSON)),
 	}
@@ -243,7 +243,7 @@ func createDiff(ctx context.Context, name string, sn snapshots.Snapshotter, cs c
 	}
 
 	return ocispec.Descriptor{
-		MediaType: images.MediaTypeDockerSchema2LayerGzip,
+		MediaType: ocispec.MediaTypeImageLayerGzip,
 		Digest:    newDesc.Digest,
 		Size:      info.Size,
 	}, diffID, nil
