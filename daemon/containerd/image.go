@@ -43,12 +43,22 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 	}
 
 	cs := i.client.ContentStore()
-	conf, err := containerdimages.Config(ctx, cs, desc, platform)
+
+	manifestDescriptor, err := i.getPlatformManifest(ctx, desc, platform)
+	if err != nil {
+		return nil, err
+	}
+	imageManifestBytes, err := content.ReadBlob(ctx, cs, manifestDescriptor)
 	if err != nil {
 		return nil, err
 	}
 
-	imageConfigBytes, err := content.ReadBlob(ctx, cs, conf)
+	var manifest ocispec.Manifest
+	if err := json.Unmarshal(imageManifestBytes, &manifest); err != nil {
+		return nil, err
+	}
+
+	imageConfigBytes, err := content.ReadBlob(ctx, cs, manifest.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +79,8 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 
 	img := image.NewImage(image.ID(desc.Digest))
 	img.V1Image = image.V1Image{
-		ID:           string(desc.Digest),
+		ID:           string(manifestDescriptor.Digest),
+		Parent:       string(desc.Digest),
 		OS:           ociimage.OS,
 		Architecture: ociimage.Architecture,
 		Config: &containertypes.Config{
@@ -217,4 +228,29 @@ func (i *ImageService) resolveDescriptor(ctx context.Context, refOrID string) (o
 	}
 
 	return img.Target, nil
+}
+
+func (i *ImageService) getPlatformManifest(ctx context.Context, desc ocispec.Descriptor, platform cplatforms.MatchComparer) (ocispec.Descriptor, error) {
+	none := ocispec.Descriptor{}
+	cs := i.client.ContentStore()
+
+	childManifests, err := containerdimages.LimitManifests(containerdimages.ChildrenHandler(cs), platform, 1)(ctx, desc)
+	if err != nil {
+		if cerrdefs.IsNotFound(err) {
+			return none, errdefs.NotFound(err)
+		}
+		return none, errdefs.System(err)
+	}
+
+	// len(childManifests) == 1 since we requested 1 and if none
+	// were found LimitManifests would have thrown an error
+	if !containerdimages.IsManifestType(childManifests[0].MediaType) {
+		return none, errdefs.NotFound(fmt.Errorf("manifest has incorrect mediatype"))
+	}
+
+	return childManifests[0], nil
+}
+
+func isDanglingImage(img containerdimages.Image) bool {
+	return img.Name == danglingImageName(img.Target.Digest)
 }

@@ -16,7 +16,6 @@ import (
 	cerrdefs "github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/leases"
-	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/rootfs"
 	"github.com/containerd/containerd/snapshots"
 	"github.com/docker/docker/api/types/backend"
@@ -39,20 +38,24 @@ with adaptations to match the Moby data model and services.
 // CommitImage creates a new image from a commit config.
 func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig) (image.ID, error) {
 	container := i.containers.Get(cc.ContainerID)
-
-	desc, err := i.resolveDescriptor(ctx, container.Config.Image)
-	if err != nil {
-		return "", err
+	manifestDescriptor := ocispec.Descriptor{
+		MediaType: ocispec.MediaTypeImageManifest,
+		Digest:    digest.Digest(container.ImageManifestDigest),
 	}
 
 	cs := i.client.ContentStore()
 
-	ocimanifest, err := images.Manifest(ctx, cs, desc, platforms.DefaultStrict())
+	imageManifestBytes, err := content.ReadBlob(ctx, cs, manifestDescriptor)
 	if err != nil {
 		return "", err
 	}
 
-	imageConfigBytes, err := content.ReadBlob(ctx, cs, ocimanifest.Config)
+	var manifest ocispec.Manifest
+	if err := json.Unmarshal(imageManifestBytes, &manifest); err != nil {
+		return "", err
+	}
+
+	imageConfigBytes, err := content.ReadBlob(ctx, cs, manifest.Config)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +91,7 @@ func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig)
 		return "", fmt.Errorf("failed to apply diff: %w", err)
 	}
 
-	layers := append(ocimanifest.Layers, diffLayerDesc)
+	layers := append(manifest.Layers, diffLayerDesc)
 	commitManifestDesc, configDigest, err := writeContentsForImage(ctx, i.snapshotter, cs, imageConfig, layers)
 	if err != nil {
 		return "", err

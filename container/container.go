@@ -61,22 +61,23 @@ type ExitStatus struct {
 type Container struct {
 	StreamConfig *stream.Config
 	// embed for Container to support states directly.
-	*State          `json:"State"` // Needed for Engine API version <= 1.11
-	Root            string         `json:"-"` // Path to the "home" of the container, including metadata.
-	BaseFS          string         `json:"-"` // Path to the graphdriver mountpoint
-	RWLayer         layer.RWLayer  `json:"-"`
-	ID              string
-	Created         time.Time
-	Managed         bool
-	Path            string
-	Args            []string
-	Config          *containertypes.Config
-	ImageID         image.ID `json:"Image"`
-	NetworkSettings *network.Settings
-	LogPath         string
-	Name            string
-	Driver          string
-	OS              string
+	*State              `json:"State"` // Needed for Engine API version <= 1.11
+	Root                string         `json:"-"` // Path to the "home" of the container, including metadata.
+	BaseFS              string         `json:"-"` // Path to the graphdriver mountpoint
+	RWLayer             layer.RWLayer  `json:"-"`
+	ID                  string
+	Created             time.Time
+	Managed             bool
+	Path                string
+	Args                []string
+	Config              *containertypes.Config
+	ImageID             image.ID `json:"Image"`
+	ImageManifestDigest string
+	NetworkSettings     *network.Settings
+	LogPath             string
+	Name                string
+	Driver              string
+	OS                  string
 	// MountLabel contains the options for the 'mount' command
 	MountLabel               string
 	ProcessLabel             string

@@ -169,6 +169,7 @@ func (daemon *Daemon) create(ctx context.Context, opts createOpts) (retC *contai
 	}
 
 	ctr.HostConfig.StorageOpt = opts.params.HostConfig.StorageOpt
+	ctr.ImageManifestDigest = img.V1Image.ID
 
 	if daemon.UsesSnapshotter() {
 		if err := daemon.imageService.PrepareSnapshot(ctx, ctr.ID, opts.params.Config.Image, opts.params.Platform); err != nil {
