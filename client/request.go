@@ -167,6 +167,16 @@ func (cli *Client) doRequest(ctx context.Context, req *http.Request) (serverResp
 			}
 		}
 
+		// if using SSH connections, we should unwrap the error to discard
+		// the misleading HTTP error since this was not an HTTP call:
+		// error during connect: Get "http://docker.example.com/v1.24/version": ...
+		if cli.proto == "ssh" {
+			innerSSHError := errors.Unwrap(err)
+			if innerSSHError != nil {
+				err = innerSSHError
+			}
+		}
+
 		// Although there's not a strongly typed error for this in go-winio,
 		// lots of people are using the default configuration for the docker
 		// daemon on Windows where the daemon is listening on a named pipe

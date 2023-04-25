@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -146,4 +147,19 @@ func TestDeadlineExceededContext(t *testing.T) {
 	_, err := client.sendRequest(ctx, http.MethodGet, testURL, nil, nil, nil)
 	assert.Equal(t, true, errdefs.IsDeadline(err))
 	assert.Equal(t, true, errors.Is(err, context.DeadlineExceeded))
+}
+
+func TestSSHError(t *testing.T) {
+	client := &Client{
+		client: newMockClient(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{}, fmt.Errorf("HTTP error wrapper: %w", errors.New("actual SSH error"))
+		}),
+	}
+	client.proto = "ssh"
+
+	req, err := client.buildRequest(http.MethodGet, path.Join(client.basePath, "/_ping"), nil, nil)
+	assert.NilError(t, err)
+
+	_, err = client.doRequest(context.TODO(), req)
+	assert.Equal(t, "actual SSH error", err.Error())
 }
