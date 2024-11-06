@@ -20,7 +20,6 @@ import (
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
-	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
@@ -34,7 +33,6 @@ import (
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
-	registrypkg "github.com/docker/docker/registry"
 	imagespec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
@@ -135,26 +133,26 @@ func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID s
 }
 
 func (i *ImageService) pullForBuilder(ctx context.Context, name string, authConfigs map[string]registry.AuthConfig, output io.Writer, platform *ocispec.Platform) (*ocispec.Descriptor, error) {
-	ref, err := reference.ParseNormalizedNamed(name)
-	if err != nil {
-		return nil, err
-	}
+	// ref, err := reference.ParseNormalizedNamed(name)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	pullRegistryAuth := &registry.AuthConfig{}
-	if len(authConfigs) > 0 {
-		// The request came with a full auth config, use it
-		repoInfo, err := i.registryService.ResolveRepository(ref)
-		if err != nil {
-			return nil, err
-		}
+	// pullRegistryAuth := &registry.AuthConfig{}
+	// if len(authConfigs) > 0 {
+	// 	// The request came with a full auth config, use it
+	// 	repoInfo, err := i.registryService.ResolveRepository(ref)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	//
+	// 	resolvedConfig := registrypkg.ResolveAuthConfig(authConfigs, repoInfo.Index)
+	// 	pullRegistryAuth = &resolvedConfig
+	// }
 
-		resolvedConfig := registrypkg.ResolveAuthConfig(authConfigs, repoInfo.Index)
-		pullRegistryAuth = &resolvedConfig
-	}
-
-	if err := i.PullImage(ctx, reference.TagNameOnly(ref), platform, nil, pullRegistryAuth, output); err != nil {
-		return nil, err
-	}
+	// if err := i.PullImage(ctx, reference.TagNameOnly(ref), platform, nil, pullRegistryAuth, output); err != nil {
+	// 	return nil, err
+	// }
 
 	img, err := i.GetImage(ctx, name, backend.GetImageOpts{Platform: platform})
 	if err != nil {

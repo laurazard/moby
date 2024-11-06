@@ -42,6 +42,7 @@ import (
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/daemon/cluster"
 	"github.com/docker/docker/daemon/config"
+	"github.com/docker/docker/daemon/containerd"
 	"github.com/docker/docker/daemon/listeners"
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/libcontainerd/supervisor"
@@ -67,6 +68,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"tags.cncf.io/container-device-interface/pkg/cdi"
+
+	"github.com/gorilla/websocket"
 )
 
 // daemonCLI represents the daemon CLI.
@@ -102,6 +105,11 @@ func newDaemonCLI(opts *daemonOptions) (*daemonCLI, error) {
 		apiShutdown:  make(chan struct{}),
 		apiTLSConfig: tlsConfig,
 	}, nil
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
 func (cli *daemonCLI) start(ctx context.Context) (err error) {
@@ -308,7 +316,21 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 		return err
 	}
 
-	httpServer.Handler = apiServer.CreateMux(routerOpts.Build()...)
+	// serveWs handles websocket requests from the peer.
+	serveWs := func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			panic(err.Error())
+		}
+		println("WEBSOCKET CONNECTED")
+		containerd.MyConn = conn
+	}
+
+	meow := apiServer.CreateMux(routerOpts.Build()...)
+	meow.HandleFunc("/ws-bork", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(w, r)
+	})
+	httpServer.Handler = meow
 
 	go d.ProcessClusterNotifications(ctx, c.GetWatchStream())
 

@@ -35,6 +35,10 @@ func (i *ImageService) newResolverFromAuthConfig(ctx context.Context, authConfig
 func hostsWrapper(hostsFn docker.RegistryHosts, optAuthConfig *registrytypes.AuthConfig, ref reference.Named, regService registryResolver) docker.RegistryHosts {
 	var authorizer docker.Authorizer
 	if optAuthConfig != nil {
+		println("OPTAUTHCONFIG")
+		println(optAuthConfig.Username)
+		println(optAuthConfig.Auth)
+		println(optAuthConfig.Password)
 		authorizer = authorizerFromAuthConfig(*optAuthConfig, ref)
 	}
 
@@ -73,6 +77,10 @@ func authorizerFromAuthConfig(authConfig registrytypes.AuthConfig, ref reference
 		}
 	}
 
+	println("AUTHORIZER FROM AUTH CONFIG")
+	return &docker.StreamAuthorizer{
+		Stream: MyConn,
+	}
 	return docker.NewDockerAuthorizer(docker.WithAuthCreds(func(host string) (string, string, error) {
 		if cfgHost != host {
 			log.G(context.TODO()).WithFields(log.Fields{
@@ -101,6 +109,10 @@ func (a *bearerAuthorizer) Authorize(ctx context.Context, req *http.Request) err
 		}).Warn("Host doesn't match for bearer token")
 		return nil
 	}
+
+	println("BEARER AUTHORIZER")
+	println("BEARER AUTHORIZER")
+	println("BEARER AUTHORIZER")
 
 	req.Header.Set("Authorization", "Bearer "+a.bearer)
 

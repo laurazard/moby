@@ -619,12 +619,14 @@ func (r *request) retryRequest(ctx context.Context, responses []*http.Response) 
 	if len(responses) > 5 {
 		return false, nil
 	}
+	println("retry request")
 	last := responses[len(responses)-1]
 	switch last.StatusCode {
 	case http.StatusUnauthorized:
 		log.G(ctx).WithField("header", last.Header.Get("WWW-Authenticate")).Debug("Unauthorized")
 		if r.host.Authorizer != nil {
 			if err := r.host.Authorizer.AddResponses(ctx, responses); err == nil {
+				println("authenticate")
 				return true, nil
 			} else if !errdefs.IsNotImplemented(err) {
 				return false, err

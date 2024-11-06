@@ -25,9 +25,16 @@ import (
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/gorilla/websocket"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
+
+type Bork struct {
+	WsConn *websocket.Conn
+}
+
+var MyConn *websocket.Conn
 
 // PullImage initiates a pull operation. baseRef is the image to pull.
 // If reference is not tagged, all tags are pulled.
@@ -38,6 +45,13 @@ func (i *ImageService) PullImage(ctx context.Context, baseRef reference.Named, p
 			dimages.ImageActions.WithValues("pull").UpdateSince(start)
 		}
 	}()
+
+	println("SARU")
+	println(authConfig.Username)
+	println(authConfig.Auth)
+	println(authConfig.Password)
+	println(authConfig.IdentityToken)
+	println(authConfig.RegistryToken)
 	out := streamformatter.NewJSONProgressOutput(outStream, false)
 
 	if !reference.IsNameOnly(baseRef) {
@@ -52,6 +66,12 @@ func (i *ImageService) PullImage(ctx context.Context, baseRef reference.Named, p
 	if err != nil {
 		return err
 	}
+	println("SARU")
+	println(authConfig.Username)
+	println(authConfig.Auth)
+	println(authConfig.Password)
+	println(authConfig.IdentityToken)
+	println(authConfig.RegistryToken)
 
 	for _, tag := range tags {
 		ref, err := reference.WithTag(baseRef, tag)
@@ -152,6 +172,8 @@ func (i *ImageService) pullTag(ctx context.Context, ref reference.Named, platfor
 			writeStatus(out, reference.FamiliarString(ref), newer)
 		}
 	}()
+
+	println("MEOW MEOW")
 
 	var sentPullingFrom, sentSchema1Deprecation bool
 	ah := images.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {

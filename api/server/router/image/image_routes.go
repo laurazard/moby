@@ -101,6 +101,7 @@ func (ir *imageRouter) postImagesCreate(ctx context.Context, w http.ResponseWrit
 		// For a pull it is not an error if no auth was given. Ignore invalid
 		// AuthConfig to increase compatibility with the existing API.
 		authConfig, _ := registry.DecodeAuthConfig(r.Header.Get(registry.AuthHeader))
+		// TODO(laurazard): HERE
 		progressErr = ir.backend.PullImage(ctx, ref, platform, metaHeaders, authConfig, output)
 	} else { // import
 		src := r.Form.Get("fromSrc")

@@ -80,6 +80,10 @@ func (p *puller) pull(ctx context.Context, ref reference.Named) (err error) {
 		log.G(ctx).Warnf("Error getting v2 registry: %v", err)
 		return err
 	}
+	println("MEOW MEOW MEOW MEOW")
+	println("MEOW MEOW MEOW MEOW")
+	println("MEOW MEOW MEOW MEOW")
+	println("MEOW MEOW MEOW MEOW")
 
 	p.manifestStore.remote, err = p.repo.Manifests(ctx)
 	if err != nil {

@@ -19,6 +19,7 @@ package docker
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 	remoteerrors "github.com/containerd/containerd/remotes/errors"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
+	"github.com/gorilla/websocket"
 )
 
 type dockerAuthorizer struct {
@@ -83,6 +85,57 @@ func WithFetchRefreshToken(f OnFetchRefreshToken) AuthorizerOpt {
 	return func(opt *authorizerConfig) {
 		opt.onFetchRefreshToken = f
 	}
+}
+
+type ClientStreamAuthorizer struct {
+	Auth   string
+	Stream *websocket.Conn
+}
+
+func (s *ClientStreamAuthorizer) Authorize(ctx context.Context, req *http.Request) error {
+	println("AUTHORIZE with value", s.Auth)
+	req.Header.Set("Authorization", s.Auth)
+	return nil
+}
+
+func (s *ClientStreamAuthorizer) AddResponses(ctx context.Context, challenges []*http.Response) error {
+	lastChallenge := challenges[len(challenges)-1]
+	for _, h := range lastChallenge.Header[http.CanonicalHeaderKey("WWW-Authenticate")] {
+		s.Stream.WriteJSON(AuthRequest{
+			Host:            lastChallenge.Request.Host,
+			Wwwauthenticate: h,
+		})
+	}
+
+	return s.handleResponse()
+}
+
+func (s *ClientStreamAuthorizer) handleResponse() error {
+	_, message, err := s.Stream.ReadMessage()
+	if err != nil {
+		return err
+	}
+	var response AuthResponse
+	err = json.Unmarshal(message, &response)
+	if err != nil {
+		return err
+	}
+	s.Auth = response.Header
+	println(s.Auth)
+	return nil
+}
+
+// AuthRequest is sent as a callback on a stream
+type AuthRequest struct {
+	// host is the registry host
+	Host string `json:"host"`
+
+	// wwwauthenticate is the HTTP WWW-Authenticate header values returned from the registry
+	Wwwauthenticate string `json:"www-authenticate"`
+}
+
+type AuthResponse struct {
+	Header string `json:"header"`
 }
 
 // NewDockerAuthorizer creates an authorizer using Docker's registry
@@ -141,6 +194,7 @@ func (a *dockerAuthorizer) getAuthHandler(host string) *authHandler {
 }
 
 func (a *dockerAuthorizer) AddResponses(ctx context.Context, responses []*http.Response) error {
+	// TODO(laurazard): HERE
 	last := responses[len(responses)-1]
 	host := last.Request.URL.Host
 
@@ -262,6 +316,7 @@ func (ah *authHandler) doBasicAuth(ctx context.Context) (string, string, error) 
 }
 
 func (ah *authHandler) doBearerAuth(ctx context.Context) (token, refreshToken string, err error) {
+	println("DO BEARER AUTH")
 	// copy common tokenOptions
 	to := ah.common
 
