@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	utf8 "unicode"
 
 	"dario.cat/mergo"
 	"github.com/containerd/log"
@@ -16,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/opts"
 	"github.com/docker/docker/registry"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/encoding"
@@ -623,6 +625,36 @@ func ValidateMinAPIVersion(ver string) error {
 	return nil
 }
 
+const (
+	// maxFeatures is the maximum number of configured daemon features.
+	maxFeatures = 100
+	// maxFeatureKeyLen is the maximum length for feature names.
+	maxFeatureKeyLen = 30
+)
+
+func validateFeatures(features map[string]bool) error {
+	if len(features) > maxFeatures {
+		return errors.Errorf("too many features – expected max %d, found %d", maxFeatures, len(features))
+	}
+
+	var errs error
+	for k := range features {
+		if len(k) > maxFeatureKeyLen {
+			errs = multierror.Append(errs, errors.Errorf("feature name length cannot be over %d: %s", maxFeatureKeyLen, k))
+		}
+		for _, r := range k {
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || // check like this since `unicode.IsLetter` includes non-latin letters
+				utf8.IsDigit(r) || r == '-' || r == '.' {
+				continue
+			}
+			errs = multierror.Append(errs, errors.Errorf("invalid feature - key must only contain alphanumeric, '-' or ',' characters: %s", k))
+			break
+		}
+
+	}
+	return errs
+}
+
 // Validate validates some specific configs.
 // such as config.DNS, config.Labels, config.DNSSearch,
 // as well as config.MaxConcurrentDownloads, config.MaxConcurrentUploads and config.MaxDownloadAttempts.
@@ -683,6 +715,12 @@ func Validate(config *Config) error {
 
 	for _, h := range config.Hosts {
 		if _, err := opts.ValidateHost(h); err != nil {
+			return err
+		}
+	}
+
+	if len(config.Features) > 0 {
+		if err := validateFeatures(config.Features); err != nil {
 			return err
 		}
 	}

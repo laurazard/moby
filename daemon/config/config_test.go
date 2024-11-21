@@ -2,10 +2,13 @@ package config // import "github.com/docker/docker/daemon/config"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/docker/docker/opts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
@@ -352,6 +356,28 @@ func TestValidateConfigurationErrors(t *testing.T) {
 			},
 			expectedErr: "invalid logging level: foobar",
 		},
+		{
+			name: "with invalid features (equals '=')",
+			config: &Config{
+				CommonConfig: CommonConfig{
+					Features: map[string]bool{
+						"foo=bar": true,
+					},
+				},
+			},
+			expectedErr: "invalid feature – key cannot contain '=': foo=bar",
+		},
+		{
+			name: "with invalid features (equals ',')",
+			config: &Config{
+				CommonConfig: CommonConfig{
+					Features: map[string]bool{
+						"foo,bar": false,
+					},
+				},
+			},
+			expectedErr: "invalid feature – key cannot contain ',': foo,bar",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -366,6 +392,149 @@ func TestValidateConfigurationErrors(t *testing.T) {
 			assert.Error(t, err, tc.expectedErr)
 		})
 	}
+}
+
+func TestValidateFeatures(t *testing.T) {
+	testCases := []struct {
+		doc            string
+		in             map[string]bool
+		expectedErrors []string
+	}{
+		{
+			doc: "no features",
+			in:  map[string]bool{},
+		},
+		{
+			doc: "single true",
+			in: map[string]bool{
+				"bork": true,
+			},
+		},
+		{
+			doc: "single false",
+			in: map[string]bool{
+				"bork": false,
+			},
+		},
+		{
+			doc: "multiple features",
+			in: map[string]bool{
+				"bork": true,
+				"meow": false,
+			},
+		},
+		{
+			doc: "valid symbols and numbers",
+			in: map[string]bool{
+				"com.foo.custom-bork":      true,
+				"123-bar.meow-snapshotter": false,
+			},
+		},
+		{
+			doc: "invalid feature key – equals '='",
+			in: map[string]bool{
+				"foo=bar": true,
+			},
+			expectedErrors: []string{"invalid feature - key must only contain alphanumeric, '-' or ',' characters: foo=bar"},
+		},
+		{
+			doc: "invalid feature key – comma ','",
+			in: map[string]bool{
+				"a,comma": true,
+			},
+			expectedErrors: []string{"invalid feature - key must only contain alphanumeric, '-' or ',' characters: a,comma"},
+		},
+		{
+			doc: "invalid feature key – '𝝧'",
+			in: map[string]bool{
+				"meow𝝧": true,
+			},
+			expectedErrors: []string{"invalid feature - key must only contain alphanumeric, '-' or ',' characters: meow𝝧"},
+		},
+		{
+			doc: "invalid feature key – multiple",
+			in: map[string]bool{
+				"★𝞉𝝧":        true,
+				"f!#0>as+a$": true,
+			},
+			expectedErrors: []string{
+				"invalid feature - key must only contain alphanumeric, '-' or ',' characters: ★𝞉𝝧",
+				"invalid feature - key must only contain alphanumeric, '-' or ',' characters: f!#0>as+a$",
+			},
+		},
+		{
+			doc: "valid and invalid features",
+			in: map[string]bool{
+				"bork":         true,
+				"invalid=meow": false,
+			},
+			expectedErrors: []string{"invalid feature - key must only contain alphanumeric, '-' or ',' characters: invalid=meow"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.doc, func(t *testing.T) {
+			cfg, err := New()
+			assert.NilError(t, err)
+			assert.Check(t, mergo.Merge(cfg, Config{
+				CommonConfig: CommonConfig{
+					Features: tc.in,
+				},
+			}, mergo.WithOverride))
+
+			err = Validate(cfg)
+			if tc.expectedErrors != nil {
+				multiErr, ok := err.(*multierror.Error)
+				assert.Check(t, ok)
+				assert.Equal(t, len(multiErr.Errors), len(tc.expectedErrors))
+				for _, singleError := range multiErr.Errors {
+					slices.Contains(tc.expectedErrors, singleError.Error())
+				}
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
+
+	t.Run("feature key too long", func(t *testing.T) {
+		const longFeatureName = "1234567890123456789012345678901234567890"
+		in := map[string]bool{
+			longFeatureName: true,
+		}
+
+		cfg, err := New()
+		assert.NilError(t, err)
+		assert.Check(t, mergo.Merge(cfg, Config{
+			CommonConfig: CommonConfig{
+				Features: in,
+			},
+		}, mergo.WithOverride))
+
+		err = Validate(cfg)
+
+		expectedError := fmt.Sprintf("feature name length cannot be over %d: %s", maxFeatureKeyLen, longFeatureName)
+		assert.ErrorContains(t, err, expectedError)
+	})
+
+	t.Run("too many features", func(t *testing.T) {
+		in := make(map[string]bool)
+		for i := 0; i < 101; i++ {
+			featureName := strconv.Itoa(i)
+			in[featureName] = true
+		}
+
+		cfg, err := New()
+		assert.NilError(t, err)
+		assert.Check(t, mergo.Merge(cfg, Config{
+			CommonConfig: CommonConfig{
+				Features: in,
+			},
+		}, mergo.WithOverride))
+
+		err = Validate(cfg)
+
+		expectedError := fmt.Sprintf("too many features – expected max %d, found %d", maxFeatures, 101)
+		assert.ErrorContains(t, err, expectedError)
+	})
 }
 
 func withForceOverwrite(fieldName string) func(config *mergo.Config) {
